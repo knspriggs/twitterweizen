@@ -2,29 +2,20 @@ package main
 
 // Initial imports, not sure if there is a conflict of types between the two twitter-go libraries
 import (
-	redis "github.com/hoisie/redis"
 	ustream "github.com/knspriggs/twitter-user-stream"
+	"github.com/boltdb/bolt"
 	"log"
 	"os"
 	"strings"
+	"time"
+	"strconv"
 )
 
-var client redis.Client
+var db *bolt.DB
 
-type Question struct {
-	Tweet_id string
-	User     *ustream.User
-	Text     string
-	Votes    []*Vote
-}
-
-type Vote struct {
-	Text  string
-	Count int64
-}
 
 // Server loop to wait for requests
-func GetRequests(cQuestion chan *Question) {
+func GetRequests(requestsChannel chan *ustream.Tweet) {
 	for {
 		ustreamClient := ustream.NewUStreamClient()
 		httpResp, err := ustreamClient.Connect()
@@ -36,24 +27,20 @@ func GetRequests(cQuestion chan *Question) {
 		var t *ustream.Tweet
 		for {
 			t = <-cTweets
-			log.Println("Request received, sending to be parsed")
-			go ParseRequest(t, cQuestion)
+			log.Printf("Request received, sending to be parsed")
+			go ParseRequest(t, requestsChannel)
 		}
 	}
 }
 
 // ParseRequest: Adds to channel if request is valid, exits otherwise
-func ParseRequest(req *ustream.Tweet, cQuestion chan *Question) {
-	// Get environment variables for config
+func ParseRequest(req *ustream.Tweet, requestsChannel chan *ustream.Tweet) {
 	handle := os.Getenv("TWITTER_USER_NAME")
 
 	question_flags := []string{"#yesno", "#yesorno"}
 	var question_pieces []string
-	var question string
-
 	question_tweet := false
 
-	//---- ERROR SOMEWHERE IN HERE
 	arr := strings.Split(req.Text, " ")
 	if req.User.Screen_name == handle {
 		for k := 0; k < len(arr); k++ {
@@ -68,39 +55,113 @@ func ParseRequest(req *ustream.Tweet, cQuestion chan *Question) {
 			}
 		}
 	}
-	//----
 
-	log.Printf("%s : %s : %d - %b", req.User.Screen_name, req.In_reply_to_status_id_str, req.Id, question_tweet)
+	log.Printf("%s : %s : %s - %b", req.User.Screen_name, req.In_reply_to_status_id_str, req.Id_str, question_tweet)
 
 	if question_tweet {
-		//add to channel to be posted!
-		p := new(Question)
-		(*p).Text = question
-		(*p).User = req.User
-		(*p).Tweet_id = req.In_reply_to_status_id_str
-		cQuestion <- p
-	} else if string(req.In_reply_to_status_id_str) != "null" {
-		if ok, _ := client.Exists(req.In_reply_to_status_id_str); ok {
-			log.Printf("We found a tweet!")
-		}
+		//add to channel to be stored
+		requestsChannel <- req
+	} else if string(req.In_reply_to_status_id_str) != "null" || string(req.In_reply_to_status_id_str) != "" {
+		requestsChannel <- req
 	} else {
-		log.Println("These are not the tweets you are looking for")
+		log.Printf("These are not the tweets you are looking for")
 	}
 }
 
-// HandRequests: Loop that takes requests from request channel to process
-func HandleRequests(cQuestion chan *Question) {
-	log.Println("Starting handler loop...")
-	var q *Question
+// HandQuestions: Loop that takes requests from request channel to process
+func HandleQuestions(requestsChannel chan *ustream.Tweet) {
+	log.Printf("Starting handler loop...")
+	var req *ustream.Tweet
 	for {
-		q = <-cQuestion
-		log.Println("Parsed request taken from channel")
-		go PostToServer(q)
+		req = <-requestsChannel
+		log.Printf("Parsed request taken from channel: %#v", req)
+		if (req.In_reply_to_status_id_str == "null" || req.In_reply_to_status_id_str == "") {
+			NewQuestion(req)
+		} else {
+			NewVote(req)
+		}
 	}
 }
 
-func PostToServer(question *Question) {
-	log.Printf("DO SOMETHING CRAZY!")
+func NewQuestion(req *ustream.Tweet) {
+	log.Printf("Logging tweet to db: %s : %s", req.User.Screen_name, req.Id_str)
+	err := db.Update(func(tx *bolt.Tx) error {
+		m, err := tx.CreateBucketIfNotExists([]byte("keys"))
+		if err != nil {
+			log.Printf("create bucket: %s", err)
+		}
+		m.Put([]byte(req.Id_str), []byte(""))
+
+		b, err := tx.CreateBucketIfNotExists([]byte(req.Id_str))
+		if err != nil {
+				log.Printf("create bucket: %s", err)
+		}
+		b.Put([]byte("text"), []byte(req.Text))
+		b.Put([]byte("yes"), []byte("0"))
+		b.Put([]byte("no"), []byte("0"))
+
+		return nil
+	})
+	if err != nil {
+		log.Printf("Errpr adding question: %s", err)
+	}
+}
+
+func NewVote(req *ustream.Tweet) {
+	log.Printf("Registering a new vote")
+	var vote byte
+	if (contains(strings.Split(req.Text, " "), "yes")) {
+		vote = 't'
+	} else if (contains(strings.Split(req.Text, " "), "no")) {
+		vote = 'f'
+	} else {
+		vote = 'q'
+	}
+
+	if (vote != 'q') {
+		err := db.Update(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte(req.In_reply_to_status_id_str))
+			if (vote == 't') {
+				b.Put([]byte("yes"), increaseVote(b.Get([]byte("yes"))))
+			} else {
+				b.Put([]byte("no"), increaseVote(b.Get([]byte("no"))))
+			}
+			return nil
+		})
+		if err != nil {
+			log.Printf("Error adding vote: %s", err)
+		}
+	}
+}
+
+func increaseVote(value []byte) ([]byte) {
+	val := string(value)
+	int_value, _ := strconv.ParseInt(val, 10, 0)
+	int_value++
+	return []byte(strconv.FormatInt(int_value, 10))
+}
+
+func PrintStats() {
+	for {
+		time.Sleep(10 * time.Second)
+		log.Printf("Printing stats:")
+		db.View(func(tx *bolt.Tx) error {
+        m := tx.Bucket([]byte("keys"))
+        if m == nil {
+            log.Printf("Bucket %q not found!", []byte("keys"))
+        } else {
+	        m.ForEach(func(k, v []byte) error {
+						b := tx.Bucket([]byte(k))
+						b.ForEach(func(k, v []byte) error {
+							log.Printf("key=%s, value=%s\n", k, v)
+							return nil
+						})
+						return nil
+					})
+				}
+        return nil
+    })
+	}
 }
 
 func main() {
@@ -108,20 +169,22 @@ func main() {
 	log.Printf("Start me up!")
 
 	//TEMP
-	os.Setenv("TWITTER_USER_NAME", "@kristianspriggs")
-	os.Setenv("REDIS_HOST_ADDRESS", "172.17.0.3:6379")
+	os.Setenv("TWITTER_USER_NAME", "kristianspriggs")
 
-	// Redis DB connections
-	client.Addr = os.Getenv("REDIS_HOST_ADDRESS")
+	var err error
 
-	// TODO: Play around with buffer size
-	cQuestion := make(chan *Question, 50)
+	db, err = bolt.Open("twitterweizen.db", 0600, &bolt.Options{Timeout: 10 * time.Second})
+  if err != nil {
+  	log.Fatal(err)
+  }
 
-	// Start the server loop
-	go GetRequests(cQuestion)
-	// Handle requests
-	HandleRequests(cQuestion)
+	requestsChannel := make(chan *ustream.Tweet, 50)
 
+	go GetRequests(requestsChannel)
+	//go PrintStats()
+	HandleQuestions(requestsChannel)
+
+	defer db.Close()
 }
 
 // Helper methods
