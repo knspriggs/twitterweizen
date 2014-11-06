@@ -55,8 +55,6 @@ func ParseRequest(req *ustream.Tweet, requestsChannel chan *ustream.Tweet) {
 		}
 	}
 
-	log.Printf("%s : %s : %s - %b", req.User.Screen_name, req.In_reply_to_status_id_str, req.Id_str, question_tweet)
-
 	if question_tweet {
 		//add to channel to be stored
 		requestsChannel <- req
@@ -68,7 +66,7 @@ func ParseRequest(req *ustream.Tweet, requestsChannel chan *ustream.Tweet) {
 }
 
 // HandQuestions: Loop that takes requests from request channel to process
-func HandleQuestions(requestsChannel chan *ustream.Tweet) {
+func HandleValidRequests(requestsChannel chan *ustream.Tweet) {
 	log.Printf("Starting handler loop...")
 	var req *ustream.Tweet
 	for {
