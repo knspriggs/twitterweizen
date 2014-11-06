@@ -2,17 +2,16 @@ package main
 
 // Initial imports, not sure if there is a conflict of types between the two twitter-go libraries
 import (
-	ustream "github.com/knspriggs/twitter-user-stream"
 	"github.com/boltdb/bolt"
+	ustream "github.com/knspriggs/twitter-user-stream"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 )
 
 var db *bolt.DB
-
 
 // Server loop to wait for requests
 func GetRequests(requestsChannel chan *ustream.Tweet) {
@@ -75,7 +74,7 @@ func HandleQuestions(requestsChannel chan *ustream.Tweet) {
 	for {
 		req = <-requestsChannel
 		log.Printf("Parsed request taken from channel: %#v", req)
-		if (req.In_reply_to_status_id_str == "null" || req.In_reply_to_status_id_str == "") {
+		if req.In_reply_to_status_id_str == "null" || req.In_reply_to_status_id_str == "" {
 			NewQuestion(req)
 		} else {
 			NewVote(req)
@@ -94,7 +93,7 @@ func NewQuestion(req *ustream.Tweet) {
 
 		b, err := tx.CreateBucketIfNotExists([]byte(req.Id_str))
 		if err != nil {
-				log.Printf("create bucket: %s", err)
+			log.Printf("create bucket: %s", err)
 		}
 		b.Put([]byte("text"), []byte(req.Text))
 		b.Put([]byte("yes"), []byte("0"))
@@ -110,18 +109,18 @@ func NewQuestion(req *ustream.Tweet) {
 func NewVote(req *ustream.Tweet) {
 	log.Printf("Registering a new vote")
 	var vote byte
-	if (contains(strings.Split(req.Text, " "), "yes")) {
+	if contains(strings.Split(req.Text, " "), "yes") {
 		vote = 't'
-	} else if (contains(strings.Split(req.Text, " "), "no")) {
+	} else if contains(strings.Split(req.Text, " "), "no") {
 		vote = 'f'
 	} else {
 		vote = 'q'
 	}
 
-	if (vote != 'q') {
+	if vote != 'q' {
 		err := db.Update(func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte(req.In_reply_to_status_id_str))
-			if (vote == 't') {
+			if vote == 't' {
 				b.Put([]byte("yes"), increaseVote(b.Get([]byte("yes"))))
 			} else {
 				b.Put([]byte("no"), increaseVote(b.Get([]byte("no"))))
@@ -134,7 +133,7 @@ func NewVote(req *ustream.Tweet) {
 	}
 }
 
-func increaseVote(value []byte) ([]byte) {
+func increaseVote(value []byte) []byte {
 	val := string(value)
 	int_value, _ := strconv.ParseInt(val, 10, 0)
 	int_value++
@@ -146,21 +145,21 @@ func PrintStats() {
 		time.Sleep(10 * time.Second)
 		log.Printf("Printing stats:")
 		db.View(func(tx *bolt.Tx) error {
-        m := tx.Bucket([]byte("keys"))
-        if m == nil {
-            log.Printf("Bucket %q not found!", []byte("keys"))
-        } else {
-	        m.ForEach(func(k, v []byte) error {
-						b := tx.Bucket([]byte(k))
-						b.ForEach(func(k, v []byte) error {
-							log.Printf("key=%s, value=%s\n", k, v)
-							return nil
-						})
+			m := tx.Bucket([]byte("keys"))
+			if m == nil {
+				log.Printf("Bucket %q not found!", []byte("keys"))
+			} else {
+				m.ForEach(func(k, v []byte) error {
+					b := tx.Bucket([]byte(k))
+					b.ForEach(func(k, v []byte) error {
+						log.Printf("key=%s, value=%s\n", k, v)
 						return nil
 					})
-				}
-        return nil
-    })
+					return nil
+				})
+			}
+			return nil
+		})
 	}
 }
 
@@ -174,9 +173,9 @@ func main() {
 	var err error
 
 	db, err = bolt.Open("twitterweizen.db", 0600, &bolt.Options{Timeout: 10 * time.Second})
-  if err != nil {
-  	log.Fatal(err)
-  }
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	requestsChannel := make(chan *ustream.Tweet, 50)
 
