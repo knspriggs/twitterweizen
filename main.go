@@ -65,7 +65,7 @@ func ParseRequest(req *ustream.Tweet, requestsChannel chan *ustream.Tweet) {
 	}
 }
 
-// HandQuestions: Loop that takes requests from request channel to process
+// HandleValidRequests: Loop that takes requests from request channel to process
 func HandleValidRequests(requestsChannel chan *ustream.Tweet) {
 	log.Printf("Starting handler loop...")
 	var req *ustream.Tweet
@@ -179,7 +179,7 @@ func main() {
 
 	go GetRequests(requestsChannel)
 	//go PrintStats()
-	HandleQuestions(requestsChannel)
+	HandleValidRequests(requestsChannel)
 
 	defer db.Close()
 }
