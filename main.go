@@ -179,7 +179,7 @@ func getIndexData() *QuestionList {
 // Index handler for http requests to '/'
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	params := getIndexData()
-	t, err := template.New("index_template").Parse("<p>{{range .Questions}}{{.Text}} : {{.Yes}}{{.Yes_str}}{{.No_str}}{{.No}}<br>{{end}}</p>")
+	t, err := template.ParseFiles("index.html")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
