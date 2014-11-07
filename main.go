@@ -20,6 +20,8 @@ type QuestionList struct {
 }
 
 type Question struct {
+	User    string
+	Id_str  string
 	Text    string
 	Yes     int64
 	No      int64
@@ -107,6 +109,7 @@ func NewQuestion(req *ustream.Tweet) {
 		if err != nil {
 			log.Printf("create bucket: %s", err)
 		}
+		b.Put([]byte("user"), []byte(req.User.Screen_name))
 		b.Put([]byte("text"), []byte(req.Text))
 		b.Put([]byte("yes"), []byte("0"))
 		b.Put([]byte("no"), []byte("0"))
@@ -164,10 +167,11 @@ func getIndexData() *QuestionList {
 		} else {
 			m.ForEach(func(k, v []byte) error {
 				b := tx.Bucket([]byte(k))
+				user := b.Get([]byte("user"))
 				text := b.Get([]byte("text"))
 				yes, _ := strconv.ParseInt(string(b.Get([]byte("yes"))), 10, 0)
 				no, _ := strconv.ParseInt(string(b.Get([]byte("no"))), 10, 0)
-				list = append(list, Question{Text: string(text), Yes: yes, No: no, Yes_str: generateString(yes, true), No_str: generateString(no, false)})
+				list = append(list, Question{User: string(user), Id_str: string(k), Text: string(text), Yes: yes, No: no, Yes_str: generateString(yes, true), No_str: generateString(no, false)})
 				return nil
 			})
 		}

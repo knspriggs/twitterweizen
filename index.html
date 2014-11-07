@@ -53,7 +53,7 @@
               <tbody>
                 {{range .Questions}}
                 <tr>
-                  <td>{{.Text}}</td>
+                  <td><a href="http://twitter.com/{{.User}}/status/{{.Id_str}}">{{.Text}}</a></td>
                   <td>{{.Yes}} <strong style="color: green;">{{.Yes_str}}</strong> <strong style="color: red;">{{.No_str}}</strong> {{.No}}</td>
                 </tr>
                 {{end}}
