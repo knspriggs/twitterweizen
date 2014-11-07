@@ -4,7 +4,9 @@ package main
 import (
 	"github.com/boltdb/bolt"
 	ustream "github.com/knspriggs/twitter-user-stream"
+	"html/template"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -13,7 +15,18 @@ import (
 
 var db *bolt.DB
 
-// Server loop to wait for requests
+type QuestionList struct {
+	Questions []Question
+}
+
+type Question struct {
+	Text    string
+	Yes     int64
+	No      int64
+	Yes_str string
+	No_str  string
+}
+
 func GetRequests(requestsChannel chan *ustream.Tweet) {
 	for {
 		ustreamClient := ustream.NewUStreamClient()
@@ -32,7 +45,6 @@ func GetRequests(requestsChannel chan *ustream.Tweet) {
 	}
 }
 
-// ParseRequest: Adds to channel if request is valid, exits otherwise
 func ParseRequest(req *ustream.Tweet, requestsChannel chan *ustream.Tweet) {
 	handle := os.Getenv("TWITTER_USER_NAME")
 
@@ -56,16 +68,14 @@ func ParseRequest(req *ustream.Tweet, requestsChannel chan *ustream.Tweet) {
 	}
 
 	if question_tweet {
-		//add to channel to be stored
 		requestsChannel <- req
-	} else if string(req.In_reply_to_status_id_str) != "null" || string(req.In_reply_to_status_id_str) != "" {
+	} else if exists(req.In_reply_to_status_id_str) {
 		requestsChannel <- req
 	} else {
 		log.Printf("These are not the tweets you are looking for")
 	}
 }
 
-// HandleValidRequests: Loop that takes requests from request channel to process
 func HandleValidRequests(requestsChannel chan *ustream.Tweet) {
 	log.Printf("Starting handler loop...")
 	var req *ustream.Tweet
@@ -107,9 +117,9 @@ func NewQuestion(req *ustream.Tweet) {
 func NewVote(req *ustream.Tweet) {
 	log.Printf("Registering a new vote")
 	var vote byte
-	if contains(strings.Split(req.Text, " "), "yes") {
+	if contains(strings.Split(req.Text, " "), "#yes") {
 		vote = 't'
-	} else if contains(strings.Split(req.Text, " "), "no") {
+	} else if contains(strings.Split(req.Text, " "), "#no") {
 		vote = 'f'
 	} else {
 		vote = 'q'
@@ -142,23 +152,39 @@ func PrintStats() {
 	for {
 		time.Sleep(10 * time.Second)
 		log.Printf("Printing stats:")
-		db.View(func(tx *bolt.Tx) error {
-			m := tx.Bucket([]byte("keys"))
-			if m == nil {
-				log.Printf("Bucket %q not found!", []byte("keys"))
-			} else {
-				m.ForEach(func(k, v []byte) error {
-					b := tx.Bucket([]byte(k))
-					b.ForEach(func(k, v []byte) error {
-						log.Printf("key=%s, value=%s\n", k, v)
-						return nil
-					})
-					return nil
-				})
-			}
-			return nil
-		})
+		list := getIndexData()
+		log.Printf("%#v", list)
 	}
+}
+
+func getIndexData() *QuestionList {
+	var list []Question
+	db.View(func(tx *bolt.Tx) error {
+		m := tx.Bucket([]byte("keys"))
+		if m == nil {
+			log.Printf("Bucket %q not found!", []byte("keys"))
+		} else {
+			m.ForEach(func(k, v []byte) error {
+				b := tx.Bucket([]byte(k))
+				text := b.Get([]byte("text"))
+				yes, _ := strconv.ParseInt(string(b.Get([]byte("yes"))), 10, 0)
+				no, _ := strconv.ParseInt(string(b.Get([]byte("no"))), 10, 0)
+				list = append(list, Question{Text: string(text), Yes: yes, No: no, Yes_str: generateString(yes, true), No_str: generateString(no, false)})
+				return nil
+			})
+		}
+		return nil
+	})
+	return &QuestionList{Questions: list}
+}
+
+func indexHandler(w http.ResponseWriter, r *http.Request) {
+	params := getIndexData()
+	t, err := template.New("index_template").Parse("<p>{{range .Questions}}{{.Text}} : {{.Yes}}{{.Yes_str}}{{.No_str}}{{.No}}<br>{{end}}</p>")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	t.Execute(w, params)
 }
 
 func main() {
@@ -169,19 +195,19 @@ func main() {
 	os.Setenv("TWITTER_USER_NAME", "kristianspriggs")
 
 	var err error
-
 	db, err = bolt.Open("twitterweizen.db", 0600, &bolt.Options{Timeout: 10 * time.Second})
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer db.Close()
 
 	requestsChannel := make(chan *ustream.Tweet, 50)
-
 	go GetRequests(requestsChannel)
 	//go PrintStats()
-	HandleValidRequests(requestsChannel)
+	go HandleValidRequests(requestsChannel)
 
-	defer db.Close()
+	http.HandleFunc("/", indexHandler)
+	http.ListenAndServe(":8080", nil)
 }
 
 // Helper methods
@@ -192,6 +218,36 @@ func contains(s []string, e string) bool {
 		}
 	}
 	return false
+}
+
+// There has got to be an easier way to do this
+func generateString(x int64, b bool) string {
+	s := ""
+	if b {
+		for k := int64(0); k < x; k++ {
+			s += "+"
+		}
+	} else {
+		for k := int64(0); k < x; k++ {
+			s += "-"
+		}
+	}
+	return s
+}
+
+func exists(key string) bool {
+	var result bool
+	db.View(func(tx *bolt.Tx) error {
+		m := tx.Bucket([]byte("keys"))
+		t := m.Get([]byte(key))
+		if t != nil {
+			result = true
+		} else {
+			result = false
+		}
+		return nil
+	})
+	return result
 }
 
 func printBeer() {
