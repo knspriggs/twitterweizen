@@ -178,12 +178,23 @@ func getIndexData() *QuestionList {
 
 // Index handler for http requests to '/'
 func indexHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("indexHandler invoked")
 	params := getIndexData()
 	t, err := template.ParseFiles("index.html")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 	t.Execute(w, params)
+}
+
+// Help handler for http requests to '/help'
+func helpHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("helpHandler invoked")
+	t, err := template.ParseFiles("help.html")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+	t.Execute(w, nil)
 }
 
 func main() {
@@ -206,6 +217,7 @@ func main() {
 	go HandleValidRequests(requestsChannel)
 
 	http.HandleFunc("/", indexHandler)
+	http.HandleFunc("/help", helpHandler)
 	http.ListenAndServe(":8080", nil)
 }
 
