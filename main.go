@@ -27,6 +27,7 @@ type Question struct {
 	No_str  string
 }
 
+// Pull requests off the usteam channel
 func GetRequests(requestsChannel chan *ustream.Tweet) {
 	for {
 		ustreamClient := ustream.NewUStreamClient()
@@ -45,6 +46,7 @@ func GetRequests(requestsChannel chan *ustream.Tweet) {
 	}
 }
 
+// Verifies if request is valid, or just another tweet on the user's stream
 func ParseRequest(req *ustream.Tweet, requestsChannel chan *ustream.Tweet) {
 	handle := os.Getenv("TWITTER_USER_NAME")
 
@@ -76,6 +78,7 @@ func ParseRequest(req *ustream.Tweet, requestsChannel chan *ustream.Tweet) {
 	}
 }
 
+// Deals with requests that are deemed valid
 func HandleValidRequests(requestsChannel chan *ustream.Tweet) {
 	log.Printf("Starting handler loop...")
 	var req *ustream.Tweet
@@ -90,6 +93,7 @@ func HandleValidRequests(requestsChannel chan *ustream.Tweet) {
 	}
 }
 
+// Register a new question
 func NewQuestion(req *ustream.Tweet) {
 	log.Printf("Logging tweet to db: %s : %s", req.User.Screen_name, req.Id_str)
 	err := db.Update(func(tx *bolt.Tx) error {
@@ -110,10 +114,11 @@ func NewQuestion(req *ustream.Tweet) {
 		return nil
 	})
 	if err != nil {
-		log.Printf("Errpr adding question: %s", err)
+		log.Printf("Error adding question: %s", err)
 	}
 }
 
+// Register a new vote
 func NewVote(req *ustream.Tweet) {
 	log.Printf("Registering a new vote")
 	var vote byte
@@ -141,6 +146,7 @@ func NewVote(req *ustream.Tweet) {
 	}
 }
 
+// Update the vote data in the DB
 func increaseVote(value []byte) []byte {
 	val := string(value)
 	int_value, _ := strconv.ParseInt(val, 10, 0)
@@ -148,15 +154,7 @@ func increaseVote(value []byte) []byte {
 	return []byte(strconv.FormatInt(int_value, 10))
 }
 
-func PrintStats() {
-	for {
-		time.Sleep(10 * time.Second)
-		log.Printf("Printing stats:")
-		list := getIndexData()
-		log.Printf("%#v", list)
-	}
-}
-
+// Get data neccesary to populate index page from DB
 func getIndexData() *QuestionList {
 	var list []Question
 	db.View(func(tx *bolt.Tx) error {
@@ -178,6 +176,7 @@ func getIndexData() *QuestionList {
 	return &QuestionList{Questions: list}
 }
 
+// Index handler for http requests to '/'
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	params := getIndexData()
 	t, err := template.New("index_template").Parse("<p>{{range .Questions}}{{.Text}} : {{.Yes}}{{.Yes_str}}{{.No_str}}{{.No}}<br>{{end}}</p>")
@@ -210,7 +209,17 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-// Helper methods
+// ----- Helper methods
+// Print DB stats for debugging
+func PrintStats() {
+	for {
+		time.Sleep(10 * time.Second)
+		log.Printf("Printing stats:")
+		list := getIndexData()
+		log.Printf("%#v", list)
+	}
+}
+
 func contains(s []string, e string) bool {
 	for _, a := range s {
 		if a == e {
@@ -235,6 +244,7 @@ func generateString(x int64, b bool) string {
 	return s
 }
 
+// Return if key exists in DB
 func exists(key string) bool {
 	var result bool
 	db.View(func(tx *bolt.Tx) error {
@@ -250,6 +260,7 @@ func exists(key string) bool {
 	return result
 }
 
+// Because why not?
 func printBeer() {
 	log.Printf("\n\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n\n", "     oOOOOOo",
 		"    ,|    oO", "   //|     |", "   \\ |     |",
