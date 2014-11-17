@@ -165,9 +165,6 @@ func main() {
 	printBeer()
 	log.Printf("Start me up!")
 
-	//TEMP
-	os.Setenv("TWITTER_USER_NAME", "kristianspriggs")
-
 	var err error
 
 	db, err = bolt.Open("twitterweizen.db", 0600, &bolt.Options{Timeout: 10 * time.Second})
