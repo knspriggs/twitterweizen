@@ -1,0 +1,6 @@
+language: go
+go:
+  - tip
+install:
+  - go get github.com/boltdb/bolt
+  - go get github.com/knspriggs/twitter-user-stream
