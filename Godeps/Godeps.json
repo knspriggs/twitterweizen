@@ -1,0 +1,19 @@
+{
+	"ImportPath": "github.com/knspriggs/twitterweizen",
+	"GoVersion": "go1.3.3",
+	"Deps": [
+		{
+			"ImportPath": "github.com/boltdb/bolt",
+			"Comment": "data/v1-254-gd285804",
+			"Rev": "d285804df1760edf4c602ecd901be5d5e67bf982"
+		},
+		{
+			"ImportPath": "github.com/knspriggs/twitter-user-stream",
+			"Rev": "8e7a1a4d5c93287712c3a7430b1572615a400fd9"
+		},
+		{
+			"ImportPath": "github.com/kurrik/oauth1a",
+			"Rev": "fc2542bc5f2532ed4a437960d2d51ff6e18a5cb6"
+		}
+	]
+}
