@@ -1,6 +1,5 @@
 package main
 
-// Initial imports, not sure if there is a conflict of types between the two twitter-go libraries
 import (
 	"github.com/boltdb/bolt"
 	ustream "github.com/knspriggs/twitter-user-stream"

@@ -4,8 +4,7 @@ MAINTAINER Kristian Spriggs
 
 ADD . /go/src/github.com/knspriggs/twitterweizen/
 
-RUN go get github.com/tools/godep
-RUN cd /go/src/github.com/knspriggs/twitterweizen && godep restore
+RUN go get github.com/knspriggs/twitterweizen
 
 RUN go install github.com/knspriggs/twitterweizen
 CMD /go/bin/twitterweizen
