@@ -115,6 +115,8 @@ func helpHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	printBeer()
 
+	log.Printf("Monitoring handle: %s\n", os.Getenv("TWITTER_USER_NAME"))
+
 	var err error
 	db, err = bolt.Open("twitterweizen.db", 0600, &bolt.Options{Timeout: 10 * time.Second})
 	if err != nil {
