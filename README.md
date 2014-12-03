@@ -35,3 +35,6 @@ To ask a question you must include one of the following hashtags in your questio
 ## Voting on a Question
 For votes to be tracked your responders must reply to your original tweet specifying the appropriate hashtag:
 `#yes` or `#no`
+
+# About
+A big shout out to the team at Riverside Labs who helped inspire and brainstorm some of the functionality for Twitterweizen
