@@ -2,11 +2,12 @@ FROM golang
 
 MAINTAINER Kristian Spriggs
 
-ADD . /app
-WORKDIR /go
-WORKDIR /
+ADD . /go/src/github.com/knspriggs/twitterweizen/
 
-RUN go get ./...
+RUN go get github.com/tools/godep
+RUN cd /go/src/github.com/knspriggs/twitterweizen && godep restore
 
-RUN go install
-CMD twitterweizen
+RUN go install github.com/knspriggs/twitterweizen
+ENTRYPOINT /go/bin/twitterweizen
+
+EXPOSE 8080
